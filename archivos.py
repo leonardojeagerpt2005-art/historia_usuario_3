@@ -1,161 +1,192 @@
 """
-archivos.py — Módulo de persistencia CSV para el inventario.
+archivos.py — CSV persistence module for the inventory system.
 """
 
 import csv
 import os
 
+# CSV header structure (expected column names)
 ENCABEZADO = ["nombre", "precio", "cantidad"]
 
 
 # ─────────────────────────────────────────────
-#  GUARDAR CSV
+#  SAVE CSV
 # ─────────────────────────────────────────────
 
 def guardar_csv(inventario, ruta, incluir_header=True):
     """
-    Guarda el inventario en un archivo CSV.
+    Saves the inventory to a CSV file.
 
-    Parámetros:
-        inventario     (list[dict]): Lista de productos a guardar.
-        ruta           (str):        Ruta destino del archivo CSV.
-        incluir_header (bool):       Si True, escribe la fila de encabezado.
+    Parameters:
+        inventario     (list[dict]): List of products to save.
+        ruta           (str):        Destination file path.
+        incluir_header (bool):       If True, writes the header row.
 
-    Retorna:
-        bool: True si se guardó con éxito, False si hubo error.
+    Returns:
+        bool: True if saved successfully, False otherwise.
     """
+    # Check if inventory is empty
     if not inventario:
-        print("  ⚠️  El inventario está vacío. No hay nada que guardar.")
+        print("  ⚠️  Inventory is empty. Nothing to save.")
         return False
 
     try:
-        # Crear directorio si no existe
+        # Create directory if it does not exist
         directorio = os.path.dirname(ruta)
         if directorio and not os.path.exists(directorio):
             os.makedirs(directorio)
 
+        # Open file in write mode with UTF-8 encoding
         with open(ruta, "w", newline="", encoding="utf-8") as f:
             escritor = csv.DictWriter(f, fieldnames=ENCABEZADO)
+
+            # Write header if required
             if incluir_header:
                 escritor.writeheader()
+
+            # Write all product rows
             escritor.writerows(inventario)
 
-        print(f"  💾  Inventario guardado en: {os.path.abspath(ruta)}")
+        print(f"  💾  Inventory saved at: {os.path.abspath(ruta)}")
         return True
 
     except PermissionError:
-        print(f"  ❌  Sin permisos de escritura en: {ruta}")
+        # Error if the program lacks write permissions
+        print(f"  ❌  No write permission for: {ruta}")
     except OSError as e:
-        print(f"  ❌  Error al guardar el archivo: {e}")
+        # General OS-related error
+        print(f"  ❌  Error saving file: {e}")
     except Exception as e:
-        print(f"  ❌  Error inesperado al guardar: {e}")
+        # Catch any unexpected error
+        print(f"  ❌  Unexpected error while saving: {e}")
 
     return False
 
 
 # ─────────────────────────────────────────────
-#  CARGAR CSV
+#  LOAD CSV
 # ─────────────────────────────────────────────
 
 def cargar_csv(ruta):
     """
-    Carga productos desde un archivo CSV con validaciones por fila.
+    Loads products from a CSV file with row-level validation.
 
-    Parámetros:
-        ruta (str): Ruta del archivo CSV a leer.
+    Parameters:
+        ruta (str): Path to the CSV file.
 
-    Retorna:
+    Returns:
         tuple(list[dict], int):
-            - Lista de productos válidos cargados.
-            - Cantidad de filas inválidas omitidas.
-        Retorna (None, 0) si el archivo no pudo leerse o el encabezado es inválido.
+            - List of valid products loaded.
+            - Number of invalid rows skipped.
+        Returns (None, 0) if the file cannot be read or header is invalid.
     """
     productos = []
     filas_invalidas = 0
 
     try:
+        # Open file in read mode
         with open(ruta, "r", encoding="utf-8") as f:
             lector = csv.DictReader(f)
 
-            # Validar encabezado
+            # Validate header structure
             if lector.fieldnames != ENCABEZADO:
-                print(f"  ❌  Encabezado inválido. Se esperaba: {','.join(ENCABEZADO)}")
-                print(f"       Encontrado: {','.join(lector.fieldnames or [])}")
+                print(f"  ❌  Invalid header. Expected: {','.join(ENCABEZADO)}")
+                print(f"       Found: {','.join(lector.fieldnames or [])}")
                 return None, 0
 
-            for numero, fila in enumerate(lector, start=2):  # fila 1 = encabezado
-                # Verificar cantidad de columnas
+            # Iterate through each row (starting from line 2)
+            for numero, fila in enumerate(lector, start=2):
+
+                # Validate number of columns
                 if len(fila) != 3:
-                    print(f"  ⚠️  Fila {numero}: columnas incorrectas — omitida.")
+                    print(f"  ⚠️  Row {numero}: incorrect columns — skipped.")
                     filas_invalidas += 1
                     continue
 
                 try:
+                    # Extract and convert values
                     nombre   = fila["nombre"].strip()
                     precio   = float(fila["precio"])
                     cantidad = int(fila["cantidad"])
 
+                    # Validate data rules
                     if not nombre:
-                        raise ValueError("Nombre vacío")
+                        raise ValueError("Empty name")
                     if precio < 0:
-                        raise ValueError("Precio negativo")
+                        raise ValueError("Negative price")
                     if cantidad < 0:
-                        raise ValueError("Cantidad negativa")
+                        raise ValueError("Negative quantity")
 
-                    productos.append({"nombre": nombre, "precio": precio, "cantidad": cantidad})
+                    # Add valid product to list
+                    productos.append({
+                        "nombre": nombre,
+                        "precio": precio,
+                        "cantidad": cantidad
+                    })
 
                 except ValueError as e:
-                    print(f"  ⚠️  Fila {numero}: dato inválido ({e}) — omitida.")
+                    # Handle invalid data in row
+                    print(f"  ⚠️  Row {numero}: invalid data ({e}) — skipped.")
                     filas_invalidas += 1
 
         return productos, filas_invalidas
 
     except FileNotFoundError:
-        print(f"  ❌  Archivo no encontrado: {ruta}")
+        # File does not exist
+        print(f"  ❌  File not found: {ruta}")
     except UnicodeDecodeError:
-        print("  ❌  Error de codificación. Asegúrate de que el archivo esté en UTF-8.")
+        # Encoding error (not UTF-8)
+        print("  ❌  Encoding error. Make sure the file is UTF-8.")
     except Exception as e:
-        print(f"  ❌  Error inesperado al cargar: {e}")
+        # Catch any unexpected error
+        print(f"  ❌  Unexpected error while loading: {e}")
 
     return None, 0
 
 
 # ─────────────────────────────────────────────
-#  FUSIÓN DE INVENTARIOS
+#  INVENTORY MERGE
 # ─────────────────────────────────────────────
 
 def fusionar(inventario_actual, nuevos):
     """
-    Fusiona la lista 'nuevos' en 'inventario_actual'.
+    Merges 'nuevos' products into 'inventario_actual'.
 
-    Política de fusión:
-      - Si el producto ya existe → suma cantidades y actualiza precio al nuevo.
-      - Si no existe → lo agrega.
+    Merge policy:
+      - If product exists → add quantities and update price to the new value.
+      - If product does not exist → add it.
 
-    Parámetros:
-        inventario_actual (list[dict]): Inventario en memoria.
-        nuevos            (list[dict]): Productos cargados del CSV.
+    Parameters:
+        inventario_actual (list[dict]): Current in-memory inventory.
+        nuevos            (list[dict]): Products loaded from CSV.
 
-    Retorna:
-        tuple(int, int): (agregados, actualizados)
+    Returns:
+        tuple(int, int): (added, updated)
     """
-    print("\n  📋  Política de fusión:")
-    print("      • Producto existente → suma cantidad + precio actualizado al nuevo valor.")
-    print("      • Producto nuevo     → se agrega directamente.\n")
+    print("\n  📋  Merge policy:")
+    print("      • Existing product → add quantity + update price.")
+    print("      • New product      → added directly.\n")
 
     agregados    = 0
     actualizados = 0
 
-    nombres_actuales = {p["nombre"].lower(): p for p in inventario_actual}
+    # Create a dictionary for fast lookup (case-insensitive)
+    nombres_actuales = {
+        p["nombre"].lower(): p for p in inventario_actual
+    }
 
+    # Iterate through new products
     for nuevo in nuevos:
         clave = nuevo["nombre"].lower()
+
         if clave in nombres_actuales:
+            # Update existing product
             existente = nombres_actuales[clave]
             existente["cantidad"] += nuevo["cantidad"]
             existente["precio"]    = nuevo["precio"]
             actualizados += 1
         else:
+            # Add new product
             inventario_actual.append(nuevo)
             nombres_actuales[clave] = nuevo
             agregados += 1
