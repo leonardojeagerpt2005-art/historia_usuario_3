@@ -1,153 +1,189 @@
 """
-app.py — Punto de entrada del sistema de inventario.
-Ejecutar: python app.py
+app.py — Entry point of the inventory system.
+Run with: python app.py
 """
 
 import os
+# Import core inventory services (business logic)
 from servicios import (
     agregar_producto, mostrar_inventario, buscar_producto,
     actualizar_producto, eliminar_producto, mostrar_estadisticas,
 )
+# Import file handling utilities (CSV persistence)
 from archivos import guardar_csv, cargar_csv, fusionar
 
-# ─── Utilidades ───────────────────────────────────────────────────────────────
+# ─── Utility Functions ────────────────────────────────────────────────────────
 
 def limpiar():
+    """Clears the console screen depending on the OS."""
     os.system("cls" if os.name == "nt" else "clear")
 
 def pausar():
-    input("\n  Presiona ENTER para continuar...")
+    """Pauses execution until the user presses ENTER."""
+    input("\n  Press ENTER to continue...")
 
 def titulo(texto):
+    """Prints a formatted title with a decorative border."""
     borde = "═" * 44
     print(f"\n{borde}\n  {texto}\n{borde}")
 
 def pedir_float(msg, minimo=0.0):
-    """Pide un float >= minimo; se llama recursivamente si el dato es invalido."""
+    """
+    Prompts the user for a float value >= minimum.
+    Uses recursion if the input is invalid.
+    """
     try:
         v = float(input(msg))
         if v >= minimo:
             return v
-        print(f"  ⚠️  Debe ser >= {minimo}.")
+        print(f"  ⚠️  Must be >= {minimo}.")
     except ValueError:
-        print("  ⚠️  Ingresa un numero valido (ej. 12.50).")
+        print("  ⚠️  Enter a valid number (e.g. 12.50).")
     return pedir_float(msg, minimo)
 
 def pedir_int(msg, minimo=0):
-    """Pide un int >= minimo; se llama recursivamente si el dato es invalido."""
+    """
+    Prompts the user for an integer >= minimum.
+    Uses recursion if the input is invalid.
+    """
     try:
         v = int(input(msg))
         if v >= minimo:
             return v
-        print(f"  ⚠️  Debe ser >= {minimo}.")
+        print(f"  ⚠️  Must be >= {minimo}.")
     except ValueError:
-        print("  ⚠️  Ingresa un numero entero valido.")
+        print("  ⚠️  Enter a valid integer.")
     return pedir_int(msg, minimo)
 
 def pedir_ruta(msg):
-    """Pide una ruta CSV; usa 'inventario.csv' si se deja en blanco."""
+    """
+    Prompts for a CSV file path.
+    Defaults to 'inventario.csv' if empty input is given.
+    Ensures the file has a .csv extension.
+    """
     ruta = input(msg).strip() or "inventario.csv"
     return ruta if ruta.endswith(".csv") else ruta + ".csv"
 
-# ─── Acciones del menu ────────────────────────────────────────────────────────
+# ─── Menu Actions ─────────────────────────────────────────────────────────────
 
 def op_agregar(inv):
-    titulo("AGREGAR PRODUCTO")
-    nombre = input("  Nombre : ").strip()
+    """Handles adding a new product to the inventory."""
+    titulo("ADD PRODUCT")
+    nombre = input("  Name : ").strip()
     if not nombre:
-        print("  ⚠️  El nombre no puede estar vacio.")
+        print("  ⚠️  Name cannot be empty.")
     else:
         print(agregar_producto(inv, nombre,
-                               pedir_float("  Precio   : $"),
-                               pedir_int  ("  Cantidad : ")))
+                               pedir_float("  Price   : $"),
+                               pedir_int  ("  Quantity: ")))
     pausar()
 
 def op_mostrar(inv):
-    titulo("INVENTARIO ACTUAL")
+    """Displays all products in the inventory."""
+    titulo("CURRENT INVENTORY")
     mostrar_inventario(inv)
     pausar()
 
 def op_buscar(inv):
-    titulo("BUSCAR PRODUCTO")
-    p = buscar_producto(inv, input("  Nombre a buscar : ").strip())
+    """Searches for a product by name."""
+    titulo("SEARCH PRODUCT")
+    p = buscar_producto(inv, input("  Name to search : ").strip())
     if p:
-        print(f"\n  Nombre   : {p['nombre']}")
-        print(f"  Precio   : ${p['precio']:.2f}")
-        print(f"  Cantidad : {p['cantidad']} uds")
+        # Display product details
+        print(f"\n  Name     : {p['nombre']}")
+        print(f"  Price    : ${p['precio']:.2f}")
+        print(f"  Quantity : {p['cantidad']} units")
         print(f"  Subtotal : ${p['precio'] * p['cantidad']:.2f}")
     else:
-        print("  ⚠️  Producto no encontrado.")
+        print("  ⚠️  Product not found.")
     pausar()
 
 def op_actualizar(inv):
-    titulo("ACTUALIZAR PRODUCTO")
-    nombre = input("  Nombre : ").strip()
+    """Updates price and/or quantity of an existing product."""
+    titulo("UPDATE PRODUCT")
+    nombre = input("  Name : ").strip()
+    
+    # Check if product exists
     if not buscar_producto(inv, nombre):
-        print("  ⚠️  Producto no encontrado.")
+        print("  ⚠️  Product not found.")
         pausar()
         return
-    print("  [1] Precio  [2] Cantidad  [3] Ambos")
-    op = input("  Opcion : ").strip()
-    precio   = pedir_float("  Nuevo precio    : $") if op in ("1","3") else None
-    cantidad = pedir_int  ("  Nueva cantidad  : ")  if op in ("2","3") else None
+
+    print("  [1] Price  [2] Quantity  [3] Both")
+    op = input("  Option : ").strip()
+
+    # Conditional updates based on user choice
+    precio   = pedir_float("  New price    : $") if op in ("1","3") else None
+    cantidad = pedir_int  ("  New quantity : ")  if op in ("2","3") else None
+
     if op not in ("1","2","3"):
-        print("  ⚠️  Opcion invalida.")
+        print("  ⚠️  Invalid option.")
     else:
         print(actualizar_producto(inv, nombre, precio, cantidad))
     pausar()
 
 def op_eliminar(inv):
-    titulo("ELIMINAR PRODUCTO")
-    nombre = input("  Nombre a eliminar : ").strip()
+    """Deletes a product from the inventory."""
+    titulo("DELETE PRODUCT")
+    nombre = input("  Name to delete : ").strip()
+
     if not buscar_producto(inv, nombre):
-        print("  ⚠️  Producto no encontrado.")
-    elif input(f"  Eliminar '{nombre}'? (S/N) : ").strip().upper() == "S":
+        print("  ⚠️  Product not found.")
+    elif input(f"  Delete '{nombre}'? (Y/N) : ").strip().upper() == "S":
         print(eliminar_producto(inv, nombre))
     else:
-        print("  Cancelado.")
+        print("  Cancelled.")
     pausar()
 
 def op_estadisticas(inv):
-    titulo("ESTADISTICAS")
+    """Displays inventory statistics (totals, etc.)."""
+    titulo("STATISTICS")
     mostrar_estadisticas(inv)
     pausar()
 
 def op_guardar(inv):
-    titulo("GUARDAR CSV")
-    guardar_csv(inv, pedir_ruta("  Ruta [inventario.csv] : "))
+    """Saves the inventory to a CSV file."""
+    titulo("SAVE CSV")
+    guardar_csv(inv, pedir_ruta("  Path [inventario.csv] : "))
     pausar()
 
 def op_cargar(inv):
-    titulo("CARGAR CSV")
-    nuevos, invalidas = cargar_csv(pedir_ruta("  Ruta [inventario.csv] : "))
+    """Loads inventory data from a CSV file."""
+    titulo("LOAD CSV")
+    nuevos, invalidas = cargar_csv(pedir_ruta("  Path [inventario.csv] : "))
+
     if nuevos is None or not nuevos:
-        print("  ⚠️  No hay datos validos para cargar.")
+        print("  ⚠️  No valid data to load.")
         pausar()
         return
-    print(f"\n  {len(nuevos)} producto(s) leidos | {invalidas} fila(s) invalida(s) omitida(s).")
-    if input("  Sobrescribir inventario? (S/N) : ").strip().upper() == "S":
+
+    print(f"\n  {len(nuevos)} product(s) read | {invalidas} invalid row(s) skipped.")
+
+    # Ask user whether to overwrite or merge data
+    if input("  Overwrite inventory? (Y/N) : ").strip().upper() == "S":
         inv.clear()
         inv.extend(nuevos)
-        print(f"  Inventario reemplazado con {len(nuevos)} producto(s).")
+        print(f"  Inventory replaced with {len(nuevos)} product(s).")
     else:
         ag, ac = fusionar(inv, nuevos)
-        print(f"  Fusion: {ag} agregado(s), {ac} actualizado(s).")
+        print(f"  Merge: {ag} added, {ac} updated.")
     pausar()
 
-# ─── Menu principal ───────────────────────────────────────────────────────────
+# ─── Main Menu ────────────────────────────────────────────────────────────────
 
 MENU = """
   +--------------------------------------+
-  |      GESTION DE INVENTARIO           |
+  |         INVENTORY MANAGEMENT         |
   +------------------+-------------------+
-  |  [1] Agregar     |  [2] Mostrar      |
-  |  [3] Buscar      |  [4] Actualizar   |
-  |  [5] Eliminar    |  [6] Estadisticas |
-  |  [7] Guardar CSV |  [8] Cargar CSV   |
+  |  [1] Add         |  [2] Show         |
+  |  [3] Search      |  [4] Update       |
+  |  [5] Delete      |  [6] Statistics   |
+  |  [7] Save CSV    |  [8] Load CSV     |
   +------------------+-------------------+
-  |            [9] Salir                 |
+  |            [9] Exit                  |
   +--------------------------------------+"""
 
+# Map menu options to their corresponding functions
 OPCIONES = {
     "1": op_agregar,    "2": op_mostrar,
     "3": op_buscar,     "4": op_actualizar,
@@ -156,33 +192,44 @@ OPCIONES = {
 }
 
 def ciclo_menu(inv, activo):
-    """Ejecuta el menu recursivamente mientras activo[0] sea True."""
+    """
+    Recursively runs the menu while 'activo[0]' is True.
+    Uses a list to allow mutability (pass-by-reference behavior).
+    """
     if not activo[0]:
         return
+
     limpiar()
     print(MENU)
-    print(f"\n  Productos en inventario: {len(inv)}")
+    print(f"\n  Products in inventory: {len(inv)}")
     print("-" * 44)
-    opcion = input("  Elige una opcion (1-9) : ").strip()
+
+    opcion = input("  Choose an option (1-9) : ").strip()
+
     if opcion == "9":
         limpiar()
-        print("\n  Hasta pronto!\n")
+        print("\n  Goodbye!\n")
         activo[0] = False
+
     elif opcion in OPCIONES:
         limpiar()
         try:
+            # Execute selected option
             OPCIONES[opcion](inv)
         except Exception as e:
-            print(f"\n  Error inesperado: {e}")
+            print(f"\n  Unexpected error: {e}")
             pausar()
     else:
-        print("  ⚠️  Opcion invalida. Elige entre 1 y 9.")
+        print("  ⚠️  Invalid option. Choose between 1 and 9.")
         pausar()
+
+    # Recursive call to keep menu running
     ciclo_menu(inv, activo)
 
 def main():
-    """Inicializa el inventario y arranca el ciclo de menu."""
+    """Initializes the inventory and starts the menu loop."""
     ciclo_menu([], [True])
 
+# Entry point check
 if __name__ == "__main__":
     main()
