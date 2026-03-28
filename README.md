@@ -162,3 +162,5 @@ inventario = [
 
 Proyecto académico — Programación en Python  
 Módulo: Colecciones, Modularización y Persistencia en Archivos
+
+(![architrcture Diagram](diagrama_flujo_en.png))
